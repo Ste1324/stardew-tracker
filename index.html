@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stardew Perfection Tracker</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6b3f24">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Stardew Tracker">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+:root { --bg:#f7d98e; --card:#fffbe8; --brown:#6b3f24; --line:#a86f39; --green:#2f7d57; --red:#9b2f2f; --text:#332315; }
+* { box-sizing:border-box; }
+body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:linear-gradient(#ffe8a3,#f4d080); color:var(--text); }
+header { position:sticky; top:0; z-index:5; background:var(--brown); color:#fff4cd; padding:14px 16px; box-shadow:0 3px 10px #0004; }
+h1 { margin:0; font-size:1.25rem; }
+header p { margin:4px 0 0; }
+main { max-width:1100px; margin:0 auto; padding:14px; }
+.note,.toolbar,.stat,.card { background:var(--card); border:2px solid var(--line); border-radius:16px; box-shadow:0 3px 0 var(--line); }
+.note { padding:12px; margin-bottom:12px; }
+.toolbar { display:flex; flex-wrap:wrap; gap:8px; padding:10px; margin-bottom:12px; }
+button { border:0; border-radius:999px; background:#8b5a32; color:white; padding:10px 14px; font-weight:700; cursor:pointer; }
+.toolbar button { flex:1 1 145px; }
+button.active { background:var(--green); }
+button.danger { background:var(--red); }
+.stats { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-bottom:12px; }
+.stat { padding:12px; }
+.stat strong { display:block; font-size:1.4rem; }
+.progress-wrap { height:16px; background:#d7b46e; border-radius:99px; overflow:hidden; margin-top:6px; }
+.progress-bar { height:100%; background:var(--green); width:0%; }
+.tabs { display:flex; overflow-x:auto; gap:8px; margin-bottom:10px; padding-bottom:6px; }
+.search { width:100%; padding:12px; border-radius:12px; border:2px solid var(--line); font-size:1rem; margin-bottom:12px; }
+.section { display:none; }
+.section.active { display:block; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(245px,1fr)); gap:12px; }
+.card { padding:12px; display:flex; gap:10px; min-height:108px; }
+.card img { width:48px; height:48px; object-fit:contain; image-rendering:pixelated; flex:0 0 auto; }
+.card h3 { margin:0 0 4px; font-size:1rem; }
+.card p { margin:3px 0; color:#6f5b45; font-size:.88rem; }
+.badge { display:inline-block; border-radius:999px; padding:3px 8px; font-size:.78rem; font-weight:700; margin-top:4px; }
+.done { background:#c8f0cc; color:#236b39; }
+.todo { background:#ffd2d2; color:#8a2222; }
+.checkline { display:flex; align-items:center; gap:8px; margin-top:8px; font-weight:700; }
+input[type=checkbox] { width:22px; height:22px; accent-color:var(--green); }
+a { color:#2767a7; font-weight:700; }
+.hidden { display:none; }
+@media(max-width:650px) { .stats { grid-template-columns:1fr; } .grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header><h1>🌾 Stardew Perfection Tracker</h1><p id="subtitle"></p></header>
+<main>
+<div class="note">
+<strong>Saving:</strong> This PWA saves your tick boxes automatically on this device/browser. Use <strong>Export Progress JSON</strong> occasionally as a backup or to move progress to another device.
+<br><br>
+After hosting it, open it in Android Chrome and use <strong>⋮ → Add to Home screen</strong>.
+</div>
+<div class="toolbar">
+<button id="exportJsonBtn" type="button">Export Progress JSON</button>
+<button id="importJsonBtn" type="button">Import Progress JSON</button>
+<button id="incompleteBtn" type="button">Show Incomplete Only</button>
+<button id="resetBtn" type="button" class="danger">Reset Ticks</button>
+<input id="importFile" class="hidden" type="file" accept=".json,application/json">
+</div>
+<div class="stats">
+<div class="stat"><span>Farm</span><strong id="farmName"></strong><span id="playerName"></span></div>
+<div class="stat"><span>Money</span><strong id="money"></strong><span>g</span></div>
+<div class="stat"><span>Save-detected completed</span><strong id="detectedCount"></strong><div class="progress-wrap"><div id="detectedBar" class="progress-bar"></div></div></div>
+<div class="stat"><span>Your ticked progress</span><strong id="manualCount"></strong><div class="progress-wrap"><div id="manualBar" class="progress-bar"></div></div></div>
+</div>
+<div class="tabs">
+<button class="tab active" data-section="goals">Perfection Goals</button>
+<button class="tab" data-section="fish">Fish</button>
+<button class="tab" data-section="cooking">Cooking</button>
+<button class="tab" data-section="crafting">Crafting</button>
+<button class="tab" data-section="friendships">Friendships</button>
+</div>
+<input id="search" class="search" placeholder="Search this section...">
+<section id="goals" class="section active"><div class="grid" id="goalsGrid"></div></section>
+<section id="fish" class="section"><div class="grid" id="fishGrid"></div></section>
+<section id="cooking" class="section"><div class="grid" id="cookingGrid"></div></section>
+<section id="crafting" class="section"><div class="grid" id="craftingGrid"></div></section>
+<section id="friendships" class="section"><div class="grid" id="friendshipsGrid"></div></section>
+</main>
+<script id="save-data" type="application/json">{"player": "Ste", "farm": "The Ranch", "money": 3291696, "friendships": [{"name": "Abigail", "points": 783, "hearts": 3, "complete": false}, {"name": "Alex", "points": 324, "hearts": 1, "complete": false}, {"name": "Caroline", "points": 1523, "hearts": 6, "complete": false}, {"name": "Clint", "points": 1523, "hearts": 6, "complete": false}, {"name": "Demetrius", "points": 2069, "hearts": 8, "complete": true}, {"name": "Dwarf", "points": 16, "hearts": 0, "complete": false}, {"name": "Elliott", "points": 410, "hearts": 1, "complete": false}, {"name": "Emily", "points": 3736, "hearts": 10, "complete": true}, {"name": "Evelyn", "points": 1650, "hearts": 6, "complete": false}, {"name": "George", "points": 1375, "hearts": 5, "complete": false}, {"name": "Gus", "points": 1631, "hearts": 6, "complete": false}, {"name": "Haley", "points": 1167, "hearts": 4, "complete": false}, {"name": "Harvey", "points": 1230, "hearts": 4, "complete": false}, {"name": "Henchman", "points": 0, "hearts": 0, "complete": false}, {"name": "Jas", "points": 836, "hearts": 3, "complete": false}, {"name": "Jodi", "points": 1281, "hearts": 5, "complete": false}, {"name": "Kent", "points": 2071, "hearts": 8, "complete": true}, {"name": "Krobus", "points": 504, "hearts": 2, "complete": false}, {"name": "Leah", "points": 578, "hearts": 2, "complete": false}, {"name": "Leo", "points": 0, "hearts": 0, "complete": false}, {"name": "Lewis", "points": 2419, "hearts": 9, "complete": true}, {"name": "Linus", "points": 2749, "hearts": 10, "complete": true}, {"name": "Marnie", "points": 2613, "hearts": 10, "complete": true}, {"name": "Maru", "points": 940, "hearts": 3, "complete": false}, {"name": "Pam", "points": 2749, "hearts": 10, "complete": true}, {"name": "Penny", "points": 445, "hearts": 1, "complete": false}, {"name": "Pierre", "points": 1088, "hearts": 4, "complete": false}, {"name": "Robin", "points": 2465, "hearts": 9, "complete": true}, {"name": "Sam", "points": 483, "hearts": 1, "complete": false}, {"name": "Sandy", "points": 128, "hearts": 0, "complete": false}, {"name": "Sebastian", "points": 638, "hearts": 2, "complete": false}, {"name": "Shane", "points": 541, "hearts": 2, "complete": false}, {"name": "Vincent", "points": 1050, "hearts": 4, "complete": false}, {"name": "Willy", "points": 2749, "hearts": 10, "complete": true}, {"name": "Wizard", "points": 1313, "hearts": 5, "complete": false}], "cooking": [{"name": "Algae Soup", "count": 0, "complete": false}, {"name": "Artichoke Dip", "count": 0, "complete": false}, {"name": "Autumn's Bounty", "count": 0, "complete": false}, {"name": "Baked Fish", "count": 0, "complete": false}, {"name": "Blackberry Cobbler", "count": 0, "complete": false}, {"name": "Blueberry Tart", "count": 0, "complete": false}, {"name": "Bread", "count": 0, "complete": false}, {"name": "Bruschetta", "count": 0, "complete": false}, {"name": "Carp Surprise", "count": 0, "complete": false}, {"name": "Cheese Cauli.", "count": 0, "complete": false}, {"name": "Chocolate Cake", "count": 0, "complete": false}, {"name": "Chowder", "count": 0, "complete": false}, {"name": "Coleslaw", "count": 0, "complete": false}, {"name": "Complete Breakfast", "count": 0, "complete": false}, {"name": "Cookies", "count": 0, "complete": false}, {"name": "Crab Cakes", "count": 0, "complete": false}, {"name": "Cranberry Candy", "count": 0, "complete": false}, {"name": "Crispy Bass", "count": 0, "complete": false}, {"name": "Dish o' The Sea", "count": 0, "complete": false}, {"name": "Eggplant Parm.", "count": 0, "complete": false}, {"name": "Escargot", "count": 0, "complete": false}, {"name": "Farmer's Lunch", "count": 0, "complete": false}, {"name": "Fiddlehead Risotto", "count": 0, "complete": false}, {"name": "Fish Stew", "count": 0, "complete": false}, {"name": "Fish Taco", "count": 0, "complete": false}, {"name": "Fried Calamari", "count": 0, "complete": false}, {"name": "Fried Eel", "count": 0, "complete": false}, {"name": "Fried Egg", "count": 0, "complete": false}, {"name": "Fried Mushroom", "count": 0, "complete": false}, {"name": "Fruit Salad", "count": 0, "complete": false}, {"name": "Ginger Ale", "count": 0, "complete": false}, {"name": "Glazed Yams", "count": 0, "complete": false}, {"name": "Hashbrowns", "count": 0, "complete": false}, {"name": "Lobster Bisque", "count": 0, "complete": false}, {"name": "Lucky Lunch", "count": 0, "complete": false}, {"name": "Maki Roll", "count": 0, "complete": false}, {"name": "Maple Bar", "count": 0, "complete": false}, {"name": "Miner's Treat", "count": 0, "complete": false}, {"name": "Moss Soup", "count": 0, "complete": false}, {"name": "Omelet", "count": 0, "complete": false}, {"name": "Pale Broth", "count": 0, "complete": false}, {"name": "Pancakes", "count": 0, "complete": false}, {"name": "Parsnip Soup", "count": 0, "complete": false}, {"name": "Pink Cake", "count": 0, "complete": false}, {"name": "Pizza", "count": 0, "complete": false}, {"name": "Plum Pudding", "count": 0, "complete": false}, {"name": "Poppyseed Muffin", "count": 0, "complete": false}, {"name": "Pumpkin Pie", "count": 0, "complete": false}, {"name": "Pumpkin Soup", "count": 0, "complete": false}, {"name": "Radish Salad", "count": 0, "complete": false}, {"name": "Red Plate", "count": 0, "complete": false}, {"name": "Rhubarb Pie", "count": 0, "complete": false}, {"name": "Roasted Hazelnuts", "count": 0, "complete": false}, {"name": "Roots Platter", "count": 0, "complete": false}, {"name": "Salad", "count": 0, "complete": false}, {"name": "Salmon Dinner", "count": 0, "complete": false}, {"name": "Sashimi", "count": 0, "complete": false}, {"name": "Seafoam Pudding", "count": 0, "complete": false}, {"name": "Shrimp Cocktail", "count": 0, "complete": false}, {"name": "Spaghetti", "count": 0, "complete": false}, {"name": "Squid Ink Ravioli", "count": 0, "complete": false}, {"name": "Stir Fry", "count": 0, "complete": false}, {"name": "Stuffing", "count": 0, "complete": false}, {"name": "Super Meal", "count": 0, "complete": false}, {"name": "Survival Burger", "count": 0, "complete": false}, {"name": "Tortilla", "count": 0, "complete": false}, {"name": "Triple Shot Espresso", "count": 0, "complete": false}, {"name": "Tropical Curry", "count": 0, "complete": false}, {"name": "Trout Soup", "count": 0, "complete": false}], "crafting": [{"name": "Ancient Seeds", "count": 2, "complete": true}, {"name": "Anvil", "count": 1, "complete": true}, {"name": "Bait", "count": 125, "complete": true}, {"name": "Bait Maker", "count": 1, "complete": true}, {"name": "Barbed Hook", "count": 1, "complete": true}, {"name": "Barrel Brazier", "count": 1, "complete": true}, {"name": "Basic Fertilizer", "count": 664, "complete": true}, {"name": "Basic Retaining Soil", "count": 1, "complete": true}, {"name": "Bee House", "count": 0, "complete": false}, {"name": "Big Chest", "count": 15, "complete": true}, {"name": "Big Stone Chest", "count": 1, "complete": true}, {"name": "Bomb", "count": 342, "complete": true}, {"name": "Bone Mill", "count": 1, "complete": true}, {"name": "Brick Floor", "count": 970, "complete": true}, {"name": "Bug Steak", "count": 3, "complete": true}, {"name": "Campfire", "count": 1, "complete": true}, {"name": "Carved Brazier", "count": 1, "complete": true}, {"name": "Cask", "count": 1, "complete": true}, {"name": "Challenge Bait", "count": 5, "complete": true}, {"name": "Charcoal Kiln", "count": 1, "complete": true}, {"name": "Cheese Press", "count": 1, "complete": true}, {"name": "Cherry Bomb", "count": 1, "complete": true}, {"name": "Chest", "count": 6, "complete": true}, {"name": "Cobblestone Path", "count": 387, "complete": true}, {"name": "Cookout Kit", "count": 1, "complete": true}, {"name": "Cork Bobber", "count": 1, "complete": true}, {"name": "Crab Pot", "count": 11, "complete": true}, {"name": "Crystal Floor", "count": 5, "complete": true}, {"name": "Crystal Path", "count": 5, "complete": true}, {"name": "Crystalarium", "count": 23, "complete": true}, {"name": "Dehydrator", "count": 1, "complete": true}, {"name": "Deluxe Bait", "count": 5, "complete": true}, {"name": "Deluxe Retaining Soil", "count": 1, "complete": true}, {"name": "Deluxe Scarecrow", "count": 3, "complete": true}, {"name": "Deluxe Speed-Gro", "count": 0, "complete": false}, {"name": "Deluxe Worm Bin", "count": 1, "complete": true}, {"name": "Dressed Spinner", "count": 1, "complete": true}, {"name": "Drum Block", "count": 1, "complete": true}, {"name": "Explosive Ammo", "count": 5, "complete": true}, {"name": "Fairy Dust", "count": 0, "complete": false}, {"name": "Farm Computer", "count": 1, "complete": true}, {"name": "Fiber Seeds", "count": 464, "complete": true}, {"name": "Field Snack", "count": 1, "complete": true}, {"name": "Fish Smoker", "count": 0, "complete": false}, {"name": "Flute Block", "count": 5, "complete": true}, {"name": "Furnace", "count": 20, "complete": true}, {"name": "Garden Pot", "count": 1, "complete": true}, {"name": "Gate", "count": 3, "complete": true}, {"name": "Geode Crusher", "count": 1, "complete": true}, {"name": "Glowstone Ring", "count": 1, "complete": true}, {"name": "Gold Brazier", "count": 2, "complete": true}, {"name": "Grass Starter", "count": 152, "complete": true}, {"name": "Gravel Path", "count": 1, "complete": true}, {"name": "Hardwood Fence", "count": 1, "complete": true}, {"name": "Heavy Furnace", "count": 10, "complete": true}, {"name": "Iridium Band", "count": 1, "complete": true}, {"name": "Iridium Sprinkler", "count": 60, "complete": true}, {"name": "Iron Fence", "count": 10, "complete": true}, {"name": "Iron Lamp-post", "count": 1, "complete": true}, {"name": "Jack-O-Lantern", "count": 0, "complete": false}, {"name": "Keg", "count": 403, "complete": true}, {"name": "Life Elixir", "count": 35, "complete": true}, {"name": "Lightning Rod", "count": 26, "complete": true}, {"name": "Loom", "count": 0, "complete": false}, {"name": "Magnet", "count": 3, "complete": true}, {"name": "Marble Brazier", "count": 1, "complete": true}, {"name": "Mayonnaise Machine", "count": 12, "complete": true}, {"name": "Mega Bomb", "count": 1, "complete": true}, {"name": "Mini-Forge", "count": 0, "complete": false}, {"name": "Mini-Jukebox", "count": 1, "complete": true}, {"name": "Mini-Obelisk", "count": 1, "complete": true}, {"name": "Monster Musk", "count": 11, "complete": true}, {"name": "Mushroom Log", "count": 18, "complete": true}, {"name": "Mystic Tree Seed", "count": 6, "complete": true}, {"name": "Oil Maker", "count": 4, "complete": true}, {"name": "Oil Of Garlic", "count": 0, "complete": false}, {"name": "Preserves Jar", "count": 19, "complete": true}, {"name": "Quality Bobber", "count": 3, "complete": true}, {"name": "Quality Fertilizer", "count": 0, "complete": false}, {"name": "Quality Retaining Soil", "count": 2, "complete": true}, {"name": "Quality Sprinkler", "count": 73, "complete": true}, {"name": "Rain Totem", "count": 3, "complete": true}, {"name": "Recycling Machine", "count": 1, "complete": true}, {"name": "Ring of Yoba", "count": 1, "complete": true}, {"name": "Rustic Plank Floor", "count": 1, "complete": true}, {"name": "Scarecrow", "count": 6, "complete": true}, {"name": "Seed Maker", "count": 8, "complete": true}, {"name": "Skull Brazier", "count": 1, "complete": true}, {"name": "Slime Egg-Press", "count": 1, "complete": true}, {"name": "Slime Incubator", "count": 1, "complete": true}, {"name": "Sonar Bobber", "count": 1, "complete": true}, {"name": "Speed-Gro", "count": 5, "complete": true}, {"name": "Spinner", "count": 1, "complete": true}, {"name": "Sprinkler", "count": 1, "complete": true}, {"name": "Staircase", "count": 1, "complete": true}, {"name": "Statue Of Blessings", "count": 0, "complete": false}, {"name": "Statue Of The Dwarf King", "count": 1, "complete": true}, {"name": "Stepping Stone Path", "count": 1, "complete": true}, {"name": "Stone Brazier", "count": 1, "complete": true}, {"name": "Stone Chest", "count": 1, "complete": true}, {"name": "Stone Fence", "count": 1, "complete": true}, {"name": "Stone Floor", "count": 259, "complete": true}, {"name": "Stone Sign", "count": 1, "complete": true}, {"name": "Stone Walkway Floor", "count": 336, "complete": true}, {"name": "Straw Floor", "count": 1, "complete": true}, {"name": "Stump Brazier", "count": 1, "complete": true}, {"name": "Sturdy Ring", "count": 1, "complete": true}, {"name": "Tapper", "count": 38, "complete": true}, {"name": "Tent Kit", "count": 1, "complete": true}, {"name": "Text Sign", "count": 1, "complete": true}, {"name": "Thorns Ring", "count": 1, "complete": true}, {"name": "Torch", "count": 1, "complete": true}, {"name": "Transmute (Au)", "count": 1, "complete": true}, {"name": "Transmute (Fe)", "count": 1, "complete": true}, {"name": "Trap Bobber", "count": 1, "complete": true}, {"name": "Treasure Hunter", "count": 0, "complete": false}, {"name": "Treasure Totem", "count": 1, "complete": true}, {"name": "Tree Fertilizer", "count": 200, "complete": true}, {"name": "Warp Totem: Beach", "count": 1, "complete": true}, {"name": "Warp Totem: Farm", "count": 0, "complete": false}, {"name": "Warp Totem: Island", "count": 2, "complete": true}, {"name": "Warp Totem: Mountains", "count": 1, "complete": true}, {"name": "Warrior Ring", "count": 1, "complete": true}, {"name": "Weathered Floor", "count": 0, "complete": false}, {"name": "Wicked Statue", "count": 1, "complete": true}, {"name": "Wild Bait", "count": 5, "complete": true}, {"name": "Wild Seeds (Fa)", "count": 0, "complete": false}, {"name": "Wild Seeds (Sp)", "count": 10, "complete": true}, {"name": "Wild Seeds (Su)", "count": 0, "complete": false}, {"name": "Wild Seeds (Wi)", "count": 0, "complete": false}, {"name": "Wood Fence", "count": 532, "complete": true}, {"name": "Wood Floor", "count": 1, "complete": true}, {"name": "Wood Lamp-post", "count": 1, "complete": true}, {"name": "Wood Path", "count": 1, "complete": true}, {"name": "Wood Sign", "count": 1, "complete": true}, {"name": "Wooden Brazier", "count": 1, "complete": true}, {"name": "Worm Bin", "count": 1, "complete": true}], "fishCaught": [], "fishInfo": {"128": {"name": "Pufferfish", "img": "Pufferfish.png", "info": "Summer, sunny weather, ocean, 12pm–4pm."}, "129": {"name": "Anchovy", "img": "Anchovy.png", "info": "Spring/Fall, ocean, any weather, any time."}, "130": {"name": "Tuna", "img": "Tuna.png", "info": "Summer/Winter, ocean, 6am–7pm."}, "131": {"name": "Sardine", "img": "Sardine.png", "info": "Spring/Fall/Winter, ocean, 6am–7pm."}, "132": {"name": "Bream", "img": "Bream.png", "info": "Any season, river, 6pm–2am."}, "136": {"name": "Largemouth Bass", "img": "Largemouth_Bass.png", "info": "Any season, mountain lake, 6am–7pm."}, "137": {"name": "Smallmouth Bass", "img": "Smallmouth_Bass.png", "info": "Spring/Fall, river/forest pond."}, "138": {"name": "Rainbow Trout", "img": "Rainbow_Trout.png", "info": "Summer, sunny weather, river/mountain lake, 6am–7pm."}, "139": {"name": "Salmon", "img": "Salmon.png", "info": "Fall, river, 6am–7pm."}, "140": {"name": "Walleye", "img": "Walleye.png", "info": "Fall, rain, river/lake/forest pond, 12pm–2am."}, "141": {"name": "Perch", "img": "Perch.png", "info": "Winter, river/lake/forest pond, any time."}, "142": {"name": "Carp", "img": "Carp.png", "info": "Mountain lake, Secret Woods, sewer, mutant bug lair."}, "143": {"name": "Catfish", "img": "Catfish.png", "info": "Rainy weather, river/Secret Woods/Witch's Swamp."}, "144": {"name": "Pike", "img": "Pike.png", "info": "Summer/Winter, river/forest pond."}, "145": {"name": "Sunfish", "img": "Sunfish.png", "info": "Spring/Summer, sunny or windy, river, 6am–7pm."}, "146": {"name": "Red Mullet", "img": "Red_Mullet.png", "info": "Summer/Winter, ocean, 6am–7pm."}, "147": {"name": "Herring", "img": "Herring.png", "info": "Spring/Winter, ocean."}, "148": {"name": "Eel", "img": "Eel.png", "info": "Spring/Fall, rain, ocean, 4pm–2am."}, "149": {"name": "Octopus", "img": "Octopus.png", "info": "Summer, ocean, 6am–1pm."}, "150": {"name": "Red Snapper", "img": "Red_Snapper.png", "info": "Summer/Fall, rain, ocean, 6am–7pm."}, "151": {"name": "Squid", "img": "Squid.png", "info": "Winter, ocean, 6pm–2am."}, "154": {"name": "Sea Cucumber", "img": "Sea_Cucumber.png", "info": "Fall/Winter, ocean, 6am–7pm."}, "155": {"name": "Super Cucumber", "img": "Super_Cucumber.png", "info": "Summer/Fall, ocean, 6pm–2am."}, "156": {"name": "Ghostfish", "img": "Ghostfish.png", "info": "Mines level 20/60."}, "158": {"name": "Stonefish", "img": "Stonefish.png", "info": "Mines level 20."}, "159": {"name": "Crimsonfish", "img": "Crimsonfish.png", "info": "Legendary fish. Summer, east beach pier."}, "160": {"name": "Angler", "img": "Angler.png", "info": "Legendary fish. Fall, north river bridge."}, "161": {"name": "Ice Pip", "img": "Ice_Pip.png", "info": "Mines level 60."}, "162": {"name": "Lava Eel", "img": "Lava_Eel.png", "info": "Mines level 100 / Volcano Caldera."}, "163": {"name": "Legend", "img": "Legend.png", "info": "Legendary fish. Spring rain, mountain lake."}, "164": {"name": "Sandfish", "img": "Sandfish.png", "info": "Desert pond, 6am–8pm."}, "165": {"name": "Scorpion Carp", "img": "Scorpion_Carp.png", "info": "Desert pond, 6am–8pm."}, "698": {"name": "Sturgeon", "img": "Sturgeon.png", "info": "Summer/Winter, mountain lake, 6am–7pm."}, "775": {"name": "Glacierfish", "img": "Glacierfish.png", "info": "Legendary fish. Winter, Cindersap Forest."}, "795": {"name": "Void Salmon", "img": "Void_Salmon.png", "info": "Witch's Swamp."}, "796": {"name": "Slimejack", "img": "Slimejack.png", "info": "Mutant Bug Lair."}}, "perfectionGoals": [{"name": "Ship every item", "img": "Shipping_Bin.png", "info": "Complete the full shipping collection.", "wiki": "https://stardewvalleywiki.com/Collections"}, {"name": "Catch every fish", "img": "Fishing_Rod.png", "info": "Catch every fish required for the Fish collection.", "wiki": "https://stardewvalleywiki.com/Fish"}, {"name": "Cook every recipe", "img": "Fried_Egg.png", "info": "Cook each recipe at least once.", "wiki": "https://stardewvalleywiki.com/Cooking"}, {"name": "Craft every item", "img": "Crafting_Table.png", "info": "Craft each recipe at least once.", "wiki": "https://stardewvalleywiki.com/Crafting"}, {"name": "Reach max hearts", "img": "Friendship_Icon.png", "info": "Reach max friendship with relevant villagers.", "wiki": "https://stardewvalleywiki.com/Friendship"}, {"name": "Find all Stardrops", "img": "Stardrop.png", "info": "Collect every Stardrop.", "wiki": "https://stardewvalleywiki.com/Stardrop"}, {"name": "Monster Slayer goals", "img": "Adventurer%27s_Guild.png", "info": "Complete Adventurer's Guild monster eradication goals.", "wiki": "https://stardewvalleywiki.com/Adventurer%27s_Guild"}, {"name": "Build all obelisks", "img": "Earth_Obelisk.png", "info": "Build Earth, Water, Desert, and Island Obelisks.", "wiki": "https://stardewvalleywiki.com/Wizard%27s_Tower"}, {"name": "Build the Gold Clock", "img": "Gold_Clock.png", "info": "Purchase the Gold Clock from the Wizard.", "wiki": "https://stardewvalleywiki.com/Gold_Clock"}, {"name": "Collect all Golden Walnuts", "img": "Golden_Walnut.png", "info": "Collect all Golden Walnuts on Ginger Island.", "wiki": "https://stardewvalleywiki.com/Golden_Walnut"}]}</script>
+<script id="embedded-progress" type="application/json">{}</script>
+<script>
+(function() {
+  var DATA = JSON.parse(document.getElementById("save-data").textContent);
+  var EMBEDDED_PROGRESS = JSON.parse(document.getElementById("embedded-progress").textContent || "{}");
+  var STORAGE_KEY = "stardew_perfection_tracker_progress_" + String(DATA.farm || "farm");
+  var runtimeProgress = {};
+  try {
+    runtimeProgress = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+  } catch(e) {
+    runtimeProgress = {};
+  }
+  var showIncompleteOnly = false;
+
+  function imgUrl(file) { return "https://stardewvalleywiki.com/mediawiki/images/" + file; }
+  function wikiPage(name) { return "https://stardewvalleywiki.com/" + encodeURIComponent(String(name).split(" ").join("_")); }
+  function progressKey(section, key) { return section + "::" + key; }
+  function getManual(section, key, fallback) {
+    var compound = progressKey(section, key);
+    if (Object.prototype.hasOwnProperty.call(runtimeProgress, compound)) return !!runtimeProgress[compound];
+    if (Object.prototype.hasOwnProperty.call(EMBEDDED_PROGRESS, compound)) return !!EMBEDDED_PROGRESS[compound];
+    return !!fallback;
+  }
+  function setManual(section, key, val) {
+    runtimeProgress[progressKey(section, key)] = !!val;
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(runtimeProgress)); } catch(e) {}
+    updateStats();
+    var activeSearch = document.getElementById("search").value || "";
+    var activeSection = document.querySelector(".section.active").id;
+    render();
+    document.querySelectorAll(".tab").forEach(function(t) {
+      t.classList.toggle("active", t.getAttribute("data-section") === activeSection);
+    });
+    document.querySelectorAll(".section").forEach(function(s) {
+      s.classList.toggle("active", s.id === activeSection);
+    });
+    document.getElementById("search").value = activeSearch;
+    filterCards(activeSearch);
+  }
+  window.setManual = setManual;
+
+  function allItems() {
+    var out = [];
+    DATA.perfectionGoals.forEach(function(x) { out.push(["goals", x.name, false]); });
+    DATA.fishCaught.forEach(function(x) { out.push(["fish", x.id, x.complete]); });
+    DATA.cooking.forEach(function(x) { out.push(["cooking", x.name, x.complete]); });
+    DATA.crafting.forEach(function(x) { out.push(["crafting", x.name, x.complete]); });
+    DATA.friendships.forEach(function(x) { out.push(["friendships", x.name, x.complete]); });
+    return out;
+  }
+
+  function collectProgress() {
+    var p = {};
+    allItems().forEach(function(x) { p[progressKey(x[0], x[1])] = getManual(x[0], x[1], x[2]); });
+    return p;
+  }
+
+  function downloadFile(filename, type, text) {
+    var blob = new Blob([text], {type:type});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 0);
+  }
+
+  function safeName(s) { return String(s || "farm").replace(/[^a-z0-9_-]+/gi, "_"); }
+
+  function downloadUpdatedTracker() {
+    var progress = collectProgress();
+    var html = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+    var progressScript = '<script id="embedded-progress" type="application/json">' +
+      JSON.stringify(progress).replace(/<\//g, "<\\/") +
+      '<\/script>';
+    html = html.replace(/<script id="embedded-progress" type="application\/json">[\s\S]*?<\/script>/, progressScript);
+    downloadFile("stardew_tracker_" + safeName(DATA.farm) + "_SAVED.html", "text/html", html);
+    alert("Saved copy downloaded. Open the new SAVED html file next time.");
+  }
+
+  function exportJson() {
+    var backup = {
+      app: "Stardew Perfection Tracker",
+      version: 4,
+      exportedAt: new Date().toISOString(),
+      player: DATA.player,
+      farm: DATA.farm,
+      progress: collectProgress()
+    };
+    downloadFile("stardew_tracker_" + safeName(DATA.farm) + "_progress.json", "application/json", JSON.stringify(backup, null, 2));
+  }
+
+  function importJsonFile(file) {
+    var reader = new FileReader();
+    reader.onload = function() {
+      try {
+        var backup = JSON.parse(reader.result);
+        if (!backup.progress) throw new Error("No progress object");
+        runtimeProgress = {};
+        Object.keys(backup.progress).forEach(function(k) { runtimeProgress[k] = !!backup.progress[k]; });
+        EMBEDDED_PROGRESS = Object.assign({}, EMBEDDED_PROGRESS, runtimeProgress);
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(runtimeProgress)); } catch(e) {}
+        render();
+        alert("Progress imported and saved on this device.");
+      } catch(e) {
+        alert("Could not import that JSON file.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function resetTicks() {
+    if (!confirm("Reset all manually ticked boxes?")) return;
+    runtimeProgress = {};
+    EMBEDDED_PROGRESS = {};
+    try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+    render();
+  }
+
+  function card(opts) {
+    var manual = getManual(opts.section, opts.key, opts.complete);
+    var title = opts.title || opts.key;
+    var searchText = (title + " " + (opts.info || "")).toLowerCase().replace(/"/g, "&quot;");
+    var img = opts.img ? '<img src="' + imgUrl(opts.img) + '" alt="" onerror="this.style.display=\'none\'">' : '<div style="width:48px"></div>';
+    var count = opts.count !== undefined ? '<p>Save count: <strong>' + opts.count + '</strong></p>' : "";
+    var wiki = opts.wiki || wikiPage(title);
+    return '<article class="card" data-search="' + searchText + '" data-complete="' + (manual ? "true" : "false") + '">' + img +
+      '<div><h3>' + title + '</h3>' + count +
+      '<p>' + (opts.info || "") + '</p>' +
+      '<span class="badge ' + (opts.complete ? "done" : "todo") + '">' + (opts.complete ? "Detected in save" : "Not detected / manual") + '</span>' +
+      '<label class="checkline"><input type="checkbox" ' + (manual ? "checked" : "") +
+      ' onchange="setManual(\'' + opts.section + '\',' + JSON.stringify(String(opts.key)) + ',this.checked)"> Complete</label>' +
+      '<p><a href="' + wiki + '" target="_blank" rel="noopener">Open wiki page</a></p></div></article>';
+  }
+
+  function render() {
+    document.getElementById("subtitle").textContent = DATA.player + " on " + DATA.farm;
+    document.getElementById("farmName").textContent = DATA.farm;
+    document.getElementById("playerName").textContent = DATA.player;
+    document.getElementById("money").textContent = Number(DATA.money || 0).toLocaleString();
+
+    document.getElementById("goalsGrid").innerHTML = DATA.perfectionGoals.map(function(g) {
+      return card({section:"goals", key:g.name, title:g.name, img:g.img, info:g.info, complete:false, wiki:g.wiki});
+    }).join("");
+
+    document.getElementById("fishGrid").innerHTML = DATA.fishCaught.map(function(f) {
+      var inf = DATA.fishInfo[f.id] || {};
+      return card({section:"fish", key:f.id, title:inf.name || ("Fish ID " + f.id), img:inf.img, info:inf.info || "Fish caught from your save.", count:f.count, complete:f.complete, wiki:inf.name ? wikiPage(inf.name) : "https://stardewvalleywiki.com/Fish"});
+    }).join("");
+
+    document.getElementById("cookingGrid").innerHTML = DATA.cooking.map(function(r) {
+      return card({section:"cooking", key:r.name, title:r.name, img:String(r.name).split(" ").join("_") + ".png", info:"Cook this recipe at least once for perfection.", count:r.count, complete:r.complete, wiki:wikiPage(r.name)});
+    }).join("");
+
+    document.getElementById("craftingGrid").innerHTML = DATA.crafting.map(function(r) {
+      return card({section:"crafting", key:r.name, title:r.name, img:String(r.name).split(" ").join("_") + ".png", info:"Craft this item at least once for perfection.", count:r.count, complete:r.complete, wiki:wikiPage(r.name)});
+    }).join("");
+
+    document.getElementById("friendshipsGrid").innerHTML = DATA.friendships.map(function(n) {
+      return card({section:"friendships", key:n.name, title:n.name, img:String(n.name).split(" ").join("_") + ".png", info:n.points + " friendship points, about " + n.hearts + " hearts.", complete:n.complete, wiki:wikiPage(n.name)});
+    }).join("");
+    updateStats();
+    filterCards(document.getElementById("search").value || "");
+  }
+
+  function updateStats() {
+    var items = allItems();
+    var detected = 0, manual = 0;
+    items.forEach(function(x) {
+      if (x[2]) detected++;
+      if (getManual(x[0], x[1], x[2])) manual++;
+    });
+    var total = items.length || 1;
+    document.getElementById("detectedCount").textContent = detected + "/" + total;
+    document.getElementById("manualCount").textContent = manual + "/" + total;
+    document.getElementById("detectedBar").style.width = Math.round(detected / total * 100) + "%";
+    document.getElementById("manualBar").style.width = Math.round(manual / total * 100) + "%";
+  }
+
+  function filterCards(q) {
+    q = String(q || "").toLowerCase();
+    var cards = document.querySelectorAll(".section.active .card");
+    for (var i=0; i<cards.length; i++) {
+      var matchesSearch = cards[i].getAttribute("data-search").indexOf(q) >= 0;
+      var isComplete = cards[i].getAttribute("data-complete") === "true";
+      var matchesIncomplete = !showIncompleteOnly || !isComplete;
+      cards[i].style.display = (matchesSearch && matchesIncomplete) ? "" : "none";
+    }
+  }
+
+  function updateIncompleteButton() {
+    var btn = document.getElementById("incompleteBtn");
+    btn.textContent = showIncompleteOnly ? "Show All Goals" : "Show Incomplete Only";
+    if (showIncompleteOnly) btn.classList.add("active");
+    else btn.classList.remove("active");
+  }
+
+  document.getElementById("exportJsonBtn").addEventListener("click", exportJson);
+  document.getElementById("importJsonBtn").addEventListener("click", function() { document.getElementById("importFile").click(); });
+  document.getElementById("incompleteBtn").addEventListener("click", function() {
+    showIncompleteOnly = !showIncompleteOnly;
+    updateIncompleteButton();
+    filterCards(document.getElementById("search").value || "");
+  });
+  document.getElementById("resetBtn").addEventListener("click", resetTicks);
+  document.getElementById("importFile").addEventListener("change", function(e) {
+    if (e.target.files && e.target.files[0]) importJsonFile(e.target.files[0]);
+    e.target.value = "";
+  });
+  document.getElementById("search").addEventListener("input", function(e) { filterCards(e.target.value); });
+  var tabs = document.querySelectorAll(".tab");
+  for (var i=0; i<tabs.length; i++) {
+    tabs[i].addEventListener("click", function() {
+      var section = this.getAttribute("data-section");
+      var allTabs = document.querySelectorAll(".tab");
+      var allSections = document.querySelectorAll(".section");
+      for (var j=0; j<allTabs.length; j++) allTabs[j].classList.remove("active");
+      for (var k=0; k<allSections.length; k++) allSections[k].classList.remove("active");
+      this.classList.add("active");
+      document.getElementById(section).classList.add("active");
+      document.getElementById("search").value = "";
+      filterCards("");
+    });
+  }
+  updateIncompleteButton();
+  render();
+})();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function() {
+    navigator.serviceWorker.register("./service-worker.js").catch(function(err) {
+      console.log("Service worker registration failed:", err);
+    });
+  });
+}
+</script>
+</body>
+</html>

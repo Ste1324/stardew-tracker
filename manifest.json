@@ -1,0 +1,22 @@
+{
+  "name": "Stardew Perfection Tracker",
+  "short_name": "Stardew Tracker",
+  "description": "Offline Stardew Valley perfection tracker generated from your save file.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7d98e",
+  "theme_color": "#6b3f24",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
